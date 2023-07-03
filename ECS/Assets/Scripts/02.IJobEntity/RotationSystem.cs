@@ -1,9 +1,9 @@
 using Unity.Burst;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Transforms;
 
-
-namespace ECSMater.IJobEntity
+namespace ECSMater.JobEntity
 {
     public partial struct RotationSystem : ISystem
     {
@@ -12,23 +12,32 @@ namespace ECSMater.IJobEntity
         {
             state.RequireForUpdate<Execute.IJobEntity>();
         }
-        
+
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var job = new RotationJob { deltaTime = SystemAPI.Time.DeltaTime };
-            // job.Schedule();
+            var job = new RotateAndScaleJob
+            {
+                deltaTime = SystemAPI.Time.DeltaTime,
+                elapsedTime = (float)SystemAPI.Time.ElapsedTime
+            };
+            job.Schedule();
         }
-    }
-    
-    [BurstCompile]
-    partial struct RotationJob : Unity.Entities.IJobEntity
-    {
-        public float deltaTime;
-
-        void Execute(ref LocalTransform transform, in RotationSpeed speed)
+        
+        [BurstCompile]
+        partial struct RotateAndScaleJob : IJobEntity
         {
-            transform = transform.RotateY(speed.RadianPerSecond * deltaTime);
+            public float deltaTime;
+            public float elapsedTime;
+
+            // In source generation, a query is created from the parameters of Execute().
+            // Here, the query will match all entities having a LocalTransform, PostTransformMatrix, and RotationSpeed component.
+            // (In the scene, the root cube has a non-uniform scale, so it is given a PostTransformMatrix component in baking.)
+            void Execute(ref LocalTransform transform, ref PostTransformMatrix postTransform, in RotationSpeed speed)
+            {
+                transform = transform.RotateY(speed.RadianPerSecond * deltaTime);
+                postTransform.Value = float4x4.Scale(1, math.sin(elapsedTime), 1);
+            }
         }
     }
 }
